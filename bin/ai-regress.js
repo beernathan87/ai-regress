@@ -13,7 +13,7 @@ Usage
   ai-regress validate <suite.yml>
 
 --config       configs to run, in order (default: all). With two or more, the first is the baseline for
-               "regressions" (pass in an earlier config, fail in a later one).
+               "regressions" (pass in the first config, fail in a later one).
 --baseline     compare with a previous --save file: pass -> fail per (config, case) is a regression.
 --fail-on      any (default): exit 1 on any failure · regressions: only on regressions · none: always 0
 Exit codes: 0 ok · 1 failures/regressions · 2 usage or suite error`;
@@ -28,7 +28,8 @@ try {
   if (!["run", "validate"].includes(cmd)) throw new Error(`unknown command ${cmd}`);
   const configs = flags("--config"), baselineFile = flag("--baseline"), save = flag("--save"), format = flag("--format", "text"), junitFile = flag("--junit"), filter = flag("--filter", null), tags = flags("--tag");
   const noCache = bool("--no-cache"), cacheDir = flag("--cache-dir", ".ai-regress-cache"), failOn = flag("--fail-on", "any");
-  const file = args.find((a) => !a.startsWith("--"));
+  if (args.length !== 1 || args[0].startsWith("-")) throw new Error(`expected one suite file; unexpected arguments: ${args.join(" ")}`);
+  const file = args[0];
   if (!file) throw new Error("suite file required"); if (!existsSync(file)) throw new Error(`no such file: ${file}`);
   if (!report[format]) throw new Error(`unknown format ${format}`); if (!["any", "regressions", "none"].includes(failOn)) throw new Error("--fail-on any|regressions|none");
   const suite = loadSuite(file);
