@@ -1,0 +1,12 @@
+{
+  "name": "ai-regress",
+  "version": "0.1.0",
+  "description": "Unit and regression tests for AI behaviour: YAML test cases, prompt/model configurations, deterministic assertions, optional LLM judge, before/after comparison, CI exit codes and JUnit output.",
+  "license": "MIT",
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "bin": { "ai-regress": "bin/ai-regress.js" },
+  "files": ["bin", "src", "README.md", "examples"],
+  "scripts": { "test": "node --test \"test/**/*.test.js\"" },
+  "dependencies": { "yaml": "^2.9.1" }
+}

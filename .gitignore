@@ -1,0 +1,3 @@
+node_modules/
+.ai-regress-cache/
+results*.json

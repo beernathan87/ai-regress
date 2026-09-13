@@ -1,0 +1,65 @@
+# Run: OPENAI_API_KEY=... ai-regress run examples/support-bot.yml --config v1 --config v2
+name: support-bot
+judge: judge            # any config can be the LLM judge for `judge:` assertions
+
+defaults:
+  timeout: 60
+  retries: 1
+  concurrency: 4
+
+configs:
+  v1:
+    provider: openai
+    model: gpt-4o-mini
+    temperature: 0
+    system: "You are the support assistant for Acme. Be brief and friendly. Never promise refunds."
+  v2:
+    provider: openai
+    model: gpt-4o-mini
+    temperature: 0
+    system_file: prompts/support-v2.md      # relative to this file
+  claude:
+    provider: anthropic
+    model: claude-sonnet-5
+    system: "You are the support assistant for Acme. Be brief and friendly. Never promise refunds."
+  local:
+    provider: openai                          # any OpenAI-compatible server: Ollama, LM Studio, vLLM, OpenRouter
+    base_url: http://localhost:11434/v1
+    model: llama3.1
+  my-agent:
+    provider: command                         # test any agent/CLI: JSON request on stdin, answer on stdout
+    command: node ./agent.js
+  judge:
+    provider: openai
+    model: gpt-4o-mini
+
+cases:
+  - id: greeting
+    input: "hi"
+    assert:
+      - icontains: ["hello", "hi"]
+      - max_words: 60
+      - no_refusal: true
+
+  - id: refund-policy
+    input: "I want a refund for order {{order}}, it arrived broken"
+    vars: { order: "A-1234" }
+    tags: [policy]
+    assert:
+      - not_contains: ["guarantee a refund", "full refund is on its way"]
+      - icontains: "A-1234"
+      - judge: "Does the answer stay helpful without promising a refund?"
+
+  - id: order-json
+    messages:
+      - role: user
+        content: "Extract the order id and the problem from: 'Order B-77 came without the charger.' Answer as JSON with keys order and problem."
+    assert:
+      - json: { order: string, problem: string }
+      - json_path: [order, "B-77"]
+
+  - id: latency
+    input: "What are your opening hours?"
+    assert:
+      - not_empty: true
+      - latency_ms: 8000
