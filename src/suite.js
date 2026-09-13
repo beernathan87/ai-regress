@@ -41,7 +41,8 @@ export function validateSuite(raw, baseDir = ".") {
   const ids = new Set();
   for (const [i, c] of raw.cases.entries()) {
     const where = `cases[${i}]`;
-    keys(c, ["id", "input", "input_file", "messages", "vars", "tags", "configs", "description", "assert", "asserts", "expect"], where);
+    keys(c, ["id", "input", "input_file", "messages", "vars", "tags", "configs", "description", "assert", "asserts", "expect", "expected_failure"], where);
+    if (c.expected_failure !== undefined && typeof c.expected_failure !== "boolean") throw new Error(`${where}.expected_failure: must be true or false`);
     for (const name of [].concat(c.configs ?? [])) if (!Object.hasOwn(suite.configs, name)) throw new Error(`${where}.configs: unknown config "${name}"`);
     const id = String(c.id ?? `case-${i + 1}`);
     if (ids.has(id)) throw new Error(`${where}.id: duplicate "${id}"`);
@@ -60,12 +61,14 @@ export function validateSuite(raw, baseDir = ".") {
       if (keys.length !== 1) throw new Error(`${where}.assert[${j}]: exactly one of ${ASSERTIONS.join(", ")}`);
       for (const k of Object.keys(a)) if (![keys[0], "weight", "name"].includes(k)) throw new Error(`${where}.assert[${j}]: unknown key "${k}"`);
       if (!Number.isFinite(a.weight ?? 1) || (a.weight ?? 1) < 0) throw new Error(`${where}.assert[${j}]: weight must be finite and nonnegative`);
+      // Empty expectations pass trivially (every string contains "", matches /(?:)/, starts with "") - reject them.
+      for (const v of [].concat(a[keys[0]])) if (["contains", "not_contains", "icontains", "regex", "not_regex", "equals", "iequals", "starts_with", "ends_with", "one_of", "judge"].includes(keys[0]) && (typeof v !== "string" || !v.trim())) throw new Error(`${where}.assert[${j}]: ${keys[0]} needs a non-empty string`);
       if (keys[0] === "json" && a.json !== true && (!mapping(a.json) || Object.values(a.json).some(t => typeof t !== "string" || !/^(string|number|boolean|array|object|any)\??$/.test(t)))) throw new Error(`${where}.assert[${j}]: json requires true or a flat type shape`);
       return { type: keys[0], value: a[keys[0]], weight: Number(a.weight ?? 1), name: a.name ? String(a.name) : null };
     });
     if (!Number.isFinite(asserts.reduce((sum, a) => sum + a.weight, 0))) throw new Error(`${where}: total assertion weight must be finite`);
     if (!asserts.length) throw new Error(`${where}: at least one assertion`);
-    suite.cases.push({ id, messages, vars, asserts, tags: [].concat(c.tags ?? []).map(String), only: [].concat(c.configs ?? []).map(String), description: c.description ? String(c.description) : "" });
+    suite.cases.push({ id, messages, vars, asserts, tags: [].concat(c.tags ?? []).map(String), only: [].concat(c.configs ?? []).map(String), description: c.description ? String(c.description) : "", expectedFailure: c.expected_failure === true });
   }
   return suite;
 }

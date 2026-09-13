@@ -9,7 +9,7 @@ export function text(sum, cmp) {
   const w = Math.max(6, ...cases.map((c) => c.length));
   out.push(`${sum.suite}  (${sum.at.replace("T", " ").slice(0, 16)} UTC)`, "");
   out.push(`${"case".padEnd(w)}  ${sum.configs.map((c) => c.padEnd(Math.max(8, c.length))).join("  ")}`);
-  for (const c of cases) out.push(`${c.padEnd(w)}  ${sum.configs.map((cfg) => { const r = sum.results.find((x) => x.config === cfg && x.case === c); return (r ? r.error ? "ERR " : r.pass ? "pass" : "FAIL" : "-   ").padEnd(Math.max(8, cfg.length)); }).join("  ")}`);
+  for (const c of cases) out.push(`${c.padEnd(w)}  ${sum.configs.map((cfg) => { const r = sum.results.find((x) => x.config === cfg && x.case === c); return (r ? r.error ? "ERR " : r.pass ? (r.expectedFailure ? "xfail" : "pass") : "FAIL" : "-   ").padEnd(Math.max(8, cfg.length)); }).join("  ")}`);
   out.push("");
   if (sum.results.some(r => r.cached)) out.push("Cached responses included: latency and tokens are original measurements; use --no-cache to remeasure.");
   for (const cfg of sum.configs) { const p = sum.perConfig[cfg]; out.push(`${cfg}: ${p.passed}/${p.total} passed${p.errors ? `, ${p.errors} error(s)` : ""}, score ${pct(p.score)}${p.avgLatencyMs != null ? `, avg ${p.avgLatencyMs} ms` : ""}${p.tokens ? `, ${p.tokens} tokens` : ""}`); }

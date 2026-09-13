@@ -24,6 +24,7 @@ const flag = (name, def) => { const v = flags(name); return v.length ? v[v.lengt
 const bool = (name) => { const i = args.indexOf(name); if (i === -1) return false; args.splice(i, 1); return true; };
 try {
   if (args.includes("--help") || args.includes("-h") || !args.length) { console.log(HELP); process.exit(args.length ? 0 : 2); }
+  if (args.length === 1 && ["--version", "-v"].includes(args[0])) { console.log(JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).version); process.exit(0); }
   const cmd = args.shift();
   if (!["run", "validate"].includes(cmd)) throw new Error(`unknown command ${cmd}`);
   const configs = flags("--config"), baselineFile = flag("--baseline"), save = flag("--save"), format = flag("--format", "text"), junitFile = flag("--junit"), filter = flag("--filter", null), tags = flags("--tag");

@@ -10,7 +10,10 @@ export async function complete(cfg, messages, vars, { timeout = 60, fetchImpl = 
   const msgs = messages.map((m) => ({ role: m.role, content: render(m.content, vars) }));
   const started = performance.now();
   const done = (out) => ({ ...out, latencyMs: Math.round(performance.now() - started) });
-  const key = (defEnv) => { const e = cfg.api_key_env || defEnv; const k = env[e]; if (!k && cfg.provider !== "openai") throw new Error(`missing API key: set ${e}`); return k ?? ""; };
+  // An explicitly named api_key_env must exist; the OpenAI default may be absent (keyless local servers).
+  const key = (defEnv) => { const e = cfg.api_key_env || defEnv; const k = env[e]; if (!k && (cfg.provider !== "openai" || cfg.api_key_env)) throw new Error(`missing API key: set ${e}`); return k ?? ""; };
+  // Never let a provider's error body echo the credential into reports/logs.
+  const redact = (text) => { let t = String(text); for (const k of [env[cfg.api_key_env || "OPENAI_API_KEY"], env[cfg.api_key_env || "ANTHROPIC_API_KEY"]]) if (k && k.length >= 8) t = t.split(k).join("[redacted]"); return t; };
   const signal = AbortSignal.timeout(Math.ceil(timeout * 1000));
   const headers = { "content-type": "application/json", ...cfg.headers };
 
@@ -31,7 +34,7 @@ export async function complete(cfg, messages, vars, { timeout = 60, fetchImpl = 
     for (const k of ["temperature", "max_tokens"]) if (body[k] == null) delete body[k];
     if (body.max_completion_tokens != null) delete body.max_tokens;
     const res = await fetchImpl(`${base}/chat/completions`, { method: "POST", headers, body: JSON.stringify(body), signal });
-    if (!res.ok) { const error = new Error(`${cfg.provider} ${res.status}: ${(await res.text()).slice(0, 300)}`); error.retryable = res.status === 429 || res.status === 408 || res.status >= 500; throw error; }
+    if (!res.ok) { const error = new Error(`${cfg.provider} ${res.status}: ${redact((await res.text()).slice(0, 300))}`); error.retryable = res.status === 429 || res.status === 408 || res.status >= 500; throw error; }
     const j = await res.json();
     const message = j.choices?.[0]?.message;
     const c = message?.content;
@@ -49,7 +52,7 @@ export async function complete(cfg, messages, vars, { timeout = 60, fetchImpl = 
     const body = { model: cfg.model, max_tokens: cfg.max_tokens, temperature: cfg.temperature, ...(system ? { system } : {}), messages: conversation, ...cfg.extra };
     if (body.temperature == null) delete body.temperature;
     const res = await fetchImpl(`${base}/v1/messages`, { method: "POST", headers, body: JSON.stringify(body), signal });
-    if (!res.ok) { const error = new Error(`${cfg.provider} ${res.status}: ${(await res.text()).slice(0, 300)}`); error.retryable = res.status === 429 || res.status === 408 || res.status >= 500; throw error; }
+    if (!res.ok) { const error = new Error(`${cfg.provider} ${res.status}: ${redact((await res.text()).slice(0, 300))}`); error.retryable = res.status === 429 || res.status === 408 || res.status >= 500; throw error; }
     const j = await res.json();
     if (!Array.isArray(j.content) || !j.content.some(p => p.type === "text" && typeof p.text === "string") || j.content.some(p => p.type === "text" && typeof p.text !== "string")) throw new Error("invalid response: anthropic requires text content");
     return done({ text: (j.content ?? []).filter((p) => p.type === "text").map((p) => p.text).join(""), usage: j.usage ? { input: j.usage.input_tokens ?? 0, output: j.usage.output_tokens ?? 0 } : null });

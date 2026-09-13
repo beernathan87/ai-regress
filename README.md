@@ -62,6 +62,8 @@ Deterministic: `contains` / `icontains` / `not_contains` (string or list), `rege
 
 LLM judge: `judge: "<yes/no question>"` asks the `judge` config for `{"pass": bool, "reason"}` with the case input and output; the reason lands in the report. Use it only where a deterministic check cannot express the requirement - judges are cached like everything else.
 
+A case with `expected_failure: true` is a known bug: it passes (shown as `xfail`) when at least one assertion fails and **fails** when everything passes, so you notice when the behaviour is fixed and remove the flag. Provider errors on such a case are still errors.
+
 Each assertion takes an optional `weight` (default 1) and `name`; a case's `score` is the weighted pass ratio, `pass` needs every assertion, even assertions with weight 0. Weights must be finite and nonnegative; if all weights are zero, score is 1 for a passing case and 0 otherwise.
 
 ### Providers
@@ -114,4 +116,37 @@ The command provider executes a trusted shell string in the current directory (`
 
 Statistical repeats/variance, cost tracking per provider price, tool-call/agent-trajectory assertions, a web UI, hosted history. Hosted history and a dashboard are the intended paid layer.
 
-MIT.
+## Providers and versions
+
+Tested against: any OpenAI-compatible `/chat/completions` endpoint (OpenAI, Ollama, LM Studio, vLLM, OpenRouter, ... via `base_url`), the Anthropic Messages API, a shell `command`, and the built-in `mock`. The exact wire formats are documented in the provider references linked above; ai-regress sends `model`, `messages`, `temperature`/`max_tokens` (or whatever you put in `extra`) and reads the first text choice. Pin models you compare (`gpt-4o-mini-2024-07-18` rather than an alias) and run with `--no-cache` after changing anything the cache key cannot see. Requires Node 20+; the only dependency is `yaml`.
+
+## Credentials
+
+API keys are read from the environment (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, or the config's `api_key_env`) and sent only to that config's endpoint. A configured `api_key_env` that is missing is an error (the run does not silently fall back to another variable); the OpenAI default may be absent for keyless local servers. Keys never appear in reports, JUnit, saved results, cache files, stdout/stderr or error messages - a provider that echoes the `Authorization` header in its error body is redacted to `[redacted]`. Outputs and saved reports can contain whatever the model said, including sensitive text from your inputs; treat them like logs.
+
+## Troubleshooting
+
+| Symptom | Cause / fix |
+|---|---|
+| `ERR` with `fetch failed` | The endpoint is unreachable (`base_url`, VPN, local server not running) |
+| `ERR` with `The operation was aborted due to timeout` | Per-attempt `timeout` (default 60 s) hit; `retries` re-attempt network/timeout/429/5xx errors |
+| `missing API key: set X` | Export the variable named by `api_key_env` (or the provider default) |
+| `openai 429: ...` after retries | Rate limit persisted through all attempts; lower `concurrency`, raise `retries` |
+| `invalid response: openai requires text content` | Tool-only / refusal-only / empty responses are errors, never a pass |
+| `... needs a non-empty string` | Empty expectations would pass trivially and are rejected at validation |
+| Everything `pass` on a rerun in milliseconds | Served from `.ai-regress-cache/`; `--no-cache` to re-query, delete the directory to reset |
+| `expected_failure` case shows `FAIL` with "expected to fail but every assertion passed" | The behaviour is fixed - remove the flag |
+| Windows: `command` provider cannot find the script | Quote paths with spaces using cmd.exe syntax; the command runs in the current directory |
+
+## Security boundary
+
+- Local CLI: it talks only to the endpoints named in the suite file and executes only the `command` providers you configure (trusted shell strings). Suites are code - review them like tests.
+- Model output is untrusted data: it is compared, never executed; regexes in the suite are yours (pathological patterns can stall the process). Judge prompts wrap input/output as JSON with explicit instructions; prompt injection can still fool a judge.
+- Interrupted runs are safe: every successful provider response is cached atomically (temp file + rename), so a rerun continues from the finished cases.
+- Report vulnerabilities privately to the maintainer before disclosure.
+
+## Credits
+
+Created by Nathan Beer. Developed by Nathan Beer with AI-assisted engineering using Claude and ChatGPT.
+
+MIT - see `LICENSE`; third-party licenses in `THIRD_PARTY_NOTICES.md`.

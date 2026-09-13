@@ -1,0 +1,24 @@
+name: ci
+on: [push, pull_request]
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22.x", cache: npm }
+      - run: npm ci
+      - run: npm test
+      - run: npm audit --omit=dev --audit-level=high
+      - run: npm pack
+      - shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/prefix" && npm install -g --prefix "$RUNNER_TEMP/prefix" ./ai-regress-*.tgz
+          BIN="$RUNNER_TEMP/prefix/bin/ai-regress"; [ -f "$BIN" ] || BIN="$RUNNER_TEMP/prefix/ai-regress"
+          "$BIN" --version
+          "$BIN" validate examples/support-bot.yml
+          printf 'name: ci\nconfigs: { m: { provider: mock, responses: "hello world" } }\ncases: [{ id: a, input: hi, assert: [{ contains: hello }] }]\n' > ci.yml
+          "$BIN" run ci.yml --format json | grep -q '"pass":true'

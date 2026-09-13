@@ -64,6 +64,13 @@ export async function runSuite(suite, { configs = Object.keys(suite.configs), ca
         r.pass = r.assertions.every((x) => x.pass);
         const totalWeight = r.assertions.reduce((s, x) => s + x.weight, 0);
         r.score = totalWeight ? r.assertions.reduce((s, x) => s + (x.pass ? x.weight : 0), 0) / totalWeight : Number(r.pass);
+        // Expected failure (xfail, strict): the case passes when at least one assertion fails; an unexpected pass
+        // is reported as a failure so a fixed behaviour gets its expectation removed. Provider errors stay errors.
+        if (c.expectedFailure) {
+          r.expectedFailure = true;
+          if (r.pass) { r.pass = false; r.score = 0; r.assertions.push({ type: "expected_failure", name: null, pass: false, detail: "expected to fail but every assertion passed - remove expected_failure", weight: 0 }); }
+          else { r.pass = true; r.score = 1; }
+        }
       } catch (e) { r.error = e.message; r.score = 0; }
       results.push(r); onResult(r);
     }

@@ -159,3 +159,58 @@ test("CLI: validate, run with two configs, --save/--baseline, junit file, exit c
     const yml = loadSuite(join(import.meta.dirname, "..", "examples", "support-bot.yml")); assert.equal(yml.cases.length, 4);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
+
+test("expected_failure: a failing case passes (xfail), an unexpected pass fails, provider errors stay errors", async () => {
+  const { loadSuite } = await import("../src/suite.js"); const { runSuite } = await import("../src/run.js");
+  const { writeFileSync, mkdtempSync, rmSync } = await import("node:fs"); const { tmpdir } = await import("node:os"); const { join } = await import("node:path");
+  const dir = mkdtempSync(join(tmpdir(), "ar-xf-")); const file = join(dir, "s.yml");
+  writeFileSync(file, `name: xf
+configs:
+  ok: { provider: mock, responses: "hello world" }
+  broken: { provider: command, command: 'node -e "process.exit(3)"' }
+cases:
+  - id: known-bug
+    input: hi
+    expected_failure: true
+    assert: [{ contains: "goodbye" }]
+  - id: fixed-now
+    input: hi
+    expected_failure: true
+    assert: [{ contains: "hello" }]
+  - id: normal
+    input: hi
+    assert: [{ contains: "hello" }]
+`);
+  try {
+    const suite = loadSuite(file);
+    const sum = await runSuite(suite, { configs: ["ok"], cache: false });
+    const by = Object.fromEntries(sum.results.map((r) => [r.case, r]));
+    assert.equal(by["known-bug"].pass, true); assert.equal(by["known-bug"].expectedFailure, true); assert.equal(by["known-bug"].score, 1);
+    assert.equal(by["fixed-now"].pass, false); assert.match(by["fixed-now"].assertions.at(-1).detail, /expected to fail/);
+    assert.equal(by["normal"].pass, true);
+    assert.equal(sum.perConfig.ok.passed, 2); assert.equal(sum.perConfig.ok.failed, 1);
+    const err = await runSuite(suite, { configs: ["broken"], cache: false });
+    assert.equal(err.perConfig.broken.errors, 3);
+    assert.throws(() => loadSuite((writeFileSync(file, "name: x\nconfigs: { a: { provider: mock, responses: x } }\ncases: [{ id: a, input: a, expected_failure: yes, assert: [{ contains: a }] }]"), file)), /expected_failure/);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("production: empty expectations are rejected; provider error bodies never echo the API key; explicit api_key_env must exist", async () => {
+  const { loadSuite } = await import("../src/suite.js"); const { complete } = await import("../src/providers.js");
+  const { writeFileSync, mkdtempSync, rmSync } = await import("node:fs"); const { tmpdir } = await import("node:os"); const { join } = await import("node:path");
+  const dir = mkdtempSync(join(tmpdir(), "ar-val-")); const file = join(dir, "s.yml");
+  try {
+    for (const bad of ['{ contains: "" }', '{ icontains: "  " }', '{ not_contains: ["x", ""] }', '{ regex: "" }', '{ one_of: [""] }', '{ judge: "" }']) {
+      writeFileSync(file, `name: x\nconfigs: { a: { provider: mock, responses: x } }\ncases: [{ id: a, input: a, assert: [${bad}] }]`);
+      assert.throws(() => loadSuite(file), /non-empty string/, bad);
+    }
+    const srv = (await import("node:http")).createServer((req, res) => { res.writeHead(401, { "content-type": "application/json" }); res.end(JSON.stringify({ error: `bad key ${req.headers.authorization}` })); });
+    await new Promise((r) => srv.listen(0, "127.0.0.1", r));
+    const url = `http://127.0.0.1:${srv.address().port}/v1`;
+    const msgs = [{ role: "user", content: "hi" }];
+    await assert.rejects(() => complete({ provider: "openai", model: "m", base_url: url }, msgs, {}, { env: { OPENAI_API_KEY: "sk-secret-value-123" } }), (e) => /401/.test(e.message) && !e.message.includes("sk-secret-value-123") && e.message.includes("[redacted]"));
+    await assert.rejects(() => complete({ provider: "openai", model: "m", base_url: url, api_key_env: "NOT_SET_ENV" }, msgs, {}, { env: {} }), /missing API key: set NOT_SET_ENV/);
+    await assert.rejects(() => complete({ provider: "openai", model: "m", base_url: url }, msgs, {}, { env: {} }), /401/, "keyless local openai-compatible server is allowed (request is made, server answers 401)");
+    srv.close();
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
