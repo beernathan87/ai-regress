@@ -21,4 +21,4 @@ jobs:
           "$BIN" --version
           "$BIN" validate examples/support-bot.yml
           printf 'name: ci\nconfigs: { m: { provider: mock, responses: "hello world" } }\ncases: [{ id: a, input: hi, assert: [{ contains: hello }] }]\n' > ci.yml
-          "$BIN" run ci.yml --format json | grep -q '"pass":true'
+          "$BIN" run ci.yml --format json | grep -qE '"pass": *true'
