@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0 (unreleased)
+## 0.1.0 - 2026-09-14
 
 First release: YAML suites with prompt/model configs (OpenAI-compatible, Anthropic, shell command, mock), deterministic assertions plus an optional LLM judge, weighted scores, cross-config and cross-time (baseline) regression detection, text / Markdown / JSON / JUnit reports, content-hash response cache, retries with backoff, CI exit codes.
 

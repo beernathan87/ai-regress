@@ -4,9 +4,35 @@
   "description": "Unit and regression tests for AI behaviour: YAML test cases, prompt/model configurations, deterministic assertions, optional LLM judge, before/after comparison, CI exit codes and JUnit output.",
   "license": "MIT",
   "type": "module",
-  "engines": { "node": ">=20" },
-  "bin": { "ai-regress": "bin/ai-regress.js" },
-  "files": ["bin", "src", "README.md", "examples", "CHANGELOG.md", "THIRD_PARTY_NOTICES.md"],
-  "scripts": { "test": "node --test \"test/**/*.test.js\"" },
-  "dependencies": { "yaml": "^2.9.1" }
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "ai-regress": "bin/ai-regress.js"
+  },
+  "files": [
+    "bin",
+    "src",
+    "README.md",
+    "examples",
+    "CHANGELOG.md",
+    "THIRD_PARTY_NOTICES.md"
+  ],
+  "scripts": {
+    "test": "node --test \"test/**/*.test.js\""
+  },
+  "dependencies": {
+    "yaml": "^2.9.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/beernathan87/ai-regress.git"
+  },
+  "homepage": "https://github.com/beernathan87/ai-regress#readme",
+  "bugs": {
+    "url": "https://github.com/beernathan87/ai-regress/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
 }
